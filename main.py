@@ -147,13 +147,15 @@ def compare_files(name1,name2,county):
 
 
 print("County,Total,New,Dropped,Democracts,Democrats Dropped,Blacks,Blacks Dropped")
+dir1 = '/Users/charles/Projects/VoterFile/201601'
+dir2 = '/Users/charles/Projects/VoterFile/201602'
 
-from_files = [f for f in os.listdir('/Users/charles/Projects/VoterFile/201602') if f.endswith(".txt")]
-to_files = [f for f in os.listdir('/Users/charles/Projects/VoterFile/201603') if f.endswith(".txt")]
+from_files = [f for f in os.listdir(dir1) if f.endswith(".txt")]
+to_files = [f for f in os.listdir(dir2) if f.endswith(".txt")]
 
 for i in range(len(from_files)):
-    compare_files(os.path.join('/Users/charles/Projects/VoterFile/201602', from_files[i]),
-                  os.path.join('/Users/charles/Projects/VoterFile/201603', to_files[i]),
+    compare_files(os.path.join(dir1, from_files[i]),
+                  os.path.join(dir2, to_files[i]),
                   metadata.county_name(from_files[i][0:3]))
 
 print("{},{},{},{},{},{},{},{}".format('Florida', stateTotal, stateNew, stateDropped, stateDemTotal, stateDemDropped, stateBlackTotal, stateBlackDropped))
