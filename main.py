@@ -13,244 +13,127 @@
     See README.md for details
 
 """
-import csv
 import os
+
 import metadata
+import processcounty
+from filter import Filter, OpEqual, OpNotIn
 
 
-#   Change these to the directories that hold your two sets of voter files.
-#   Unless you are also named Charles and are on a Mac, these values will not work for you...
-#   Files will be named in the format CountyCode_YYYYMMDD.txt
+#   Define the filters we want to use
+def myFilters():
+    #   The filter structure is a bit complicated, but not too hard to understand.
+    #
+    #   A filter consists of two things:
+    #
+    #   1. The name (for use in generating the CSV output)
+    #   2. The criteria (for identifying records that match)
+    #
+    #   The criteria is a list of zero or more rules.  All rules must be true for the filter to match
+    #   (If there are zero rules, the rule matches by default)
+    #
+    #   Each rule has three parts:
+    #
+    #   1. The index in the record to look at. You can uses metadata.get_column_index() to
+    #      translate nice english names into the numerical index needed for the rule
+    #   2. The operator used for comparison: OpEqual, OpNotEqual, etc.
+    #   3. What to compare against.  For most operators, it's a single value.  But for
+    #      OpIn it's an arbitrarily long list.  For OpBetween, it's the lowest and highest value
 
-dir1 = '/Users/charles/Projects/VoterFile/201512'
-dir2 = '/Users/charles/Projects/VoterFile/201601'
+    filters = []
 
-# There is no reason, FWIW, you have to compare sequential months, although you might miss people
-# who come and go very quickly...
+    #   The simplest of all filters, one that admits all voters
+    filters.append(Filter("All", []))
 
-# This is the name of the output file; it can be where ever you wish, but probably not here...
-output_name = '/Users/charles/Projects/VoterFile/Changes-2015-12-2016-01.txt'
+    #   Filters by party
+    filters.append(Filter("Democrats", [[metadata.get_column_index("Party"), OpEqual, "DEM"]]))
+    filters.append(Filter("Republicans", [[metadata.get_column_index("Party"), OpEqual, "REP"]]))
+    filters.append(Filter("No Party", [[metadata.get_column_index("Party"), OpEqual, "NPA"]]))
+    filters.append(Filter("Third Party", [[metadata.get_column_index("Party"), OpNotIn, ("DEM", "REP", "NPA")]]))
 
-output_file = open(output_name, "w")
+    #   Filters by race
+    filters.append(Filter("Blacks", [[metadata.get_column_index("Race"), OpEqual, "3"]]))
+    filters.append(Filter("Whites", [[metadata.get_column_index("Race"), OpEqual, "5"]]))
+    filters.append(Filter("Other Races", [[metadata.get_column_index("Race"), OpNotIn, ("3", "5")]]))
 
-stateNew = 0
-stateDropped = 0
-stateTotal = 0
-stateBlackDropped = 0
-stateBlackTotal = 0
-stateDemDropped = 0
-stateDemTotal = 0
+    #   Filters by gender
+    filters.append(Filter("Men", [[metadata.get_column_index("Gender"), OpEqual, "M"]]))
+    filters.append(Filter("Women", [[metadata.get_column_index("Gender"), OpEqual, "F"]]))
 
+    #   Example of a complex filter: African-American Women
+    filters.append(Filter("Black Women", [
+        [metadata.get_column_index("Race"), OpEqual, "3"],
+        [metadata.get_column_index("Gender"), OpEqual, "F"]
+    ]))
 
-def compare_files(name1,name2,county):
-    global stateNew
-    global stateDropped
-    global stateTotal
-    global stateBlackDropped
-    global stateDemDropped
-
-    file1 = open(name1, "r")
-    file2 = open(name2, "r")
-
-    reader1 = csv.reader(file1, delimiter = '\t')
-    reader2 = csv.reader(file2, delimiter = '\t')
-
-    rows1 = []
-    rows2 = []
-
-    for r in reader1:
-        rows1.append(r)
-
-    for r in reader2:
-        rows2.append(r)
-
-
-    # Upon a superficial inspection, it would appear that the voter files are sorted
-    # by voter id.  But they are not quite.  Since the code requires the data in sorted
-    # order, we have to sort it ourselves.
-
-    #   We want to sort on the voter id...
-    def key_func(x):
-        return int(x[1])
-
-    rows1.sort(key=key_func)
-    rows2.sort(key=key_func)
+    return filters
 
 
-    # Get the iterator over the rows...
-    iter1 = iter(rows1)
-    iter2 = iter(rows2)
+#
+#   Perform the actual analysis on the data
+def doAnalysis(dir1, dir2, output_name, filters):
+    output_file = open(output_name, "w")
 
-    # These track our end of file conditions
-    done1 = False
-    done2 = False
+    #   Print the header row of the data
+    header = "County"
 
-    # These are our per county stats
-    totalVoters = 0
-    totalDropped = 0
-    totalBlackDropped = 0
-    totalBlack = 0
-    totalDemDropped = 0
-    totalDem = 0
-    totalNew = 0
+    for f in filters:
+        header += "\t" + f.name + " Total"
+        header += "\t" + f.name + " Added"
+        header += "\t" + f.name + " Deleted"
 
-    # For each row in the "new" file, we want to calcualte some set of statistics
-    # This function gets each row and will examine it to updates the appropriate counts....
-    def updateDemo(row):
-        nonlocal totalBlack
-        nonlocal totalDem
-        nonlocal totalVoters
-        global stateBlackTotal
-        global stateDemTotal
-        global stateTotal
+    print(header, file=output_file)
 
-        totalVoters += 1
-        stateTotal += 1
+    #   Find all the files in both directories to process.
+    from_files = [f for f in os.listdir(dir1) if f.endswith(".txt")]
+    to_files = [f for f in os.listdir(dir2) if f.endswith(".txt")]
 
-        if row[20] == '3':
-            totalBlack += 1
-            stateBlackTotal += 1
+    #   Sort the file names just to be sure they are in the same order
+    from_files.sort()
+    to_files.sort()
 
-        if row[23] == 'DEM':
-            totalDem += 1
-            stateDemTotal += 1
+    for i in range(len(from_files)):
+        print("Now processing {} county".format(metadata.county_name(from_files[i][0:3])))
+        processcounty.compare_files(
+            os.path.join(dir1, from_files[i]),
+            os.path.join(dir2, to_files[i]),
+            filters)
 
-    # This function processes the information about a voter who has been dropped from the rolls
-    # You can change it to handle whatever demographic tracking you wish
-    def missingVoter(row):
-        nonlocal totalDropped
-        nonlocal totalBlackDropped
-        nonlocal totalDemDropped
+        line = metadata.county_name(from_files[i][0:3])
+        for f in filters:
+            line += "\t" + str(f.localTotal)
+            line += "\t" + str(f.localAdditions)
+            line += "\t" + str(f.localDeletions)
+            f.resetLocal()
 
-        global stateBlackDropped
-        global stateDemDropped
-        global stateDropped
+        print(line, file=output_file)
+        output_file.flush()  # Not really necessary, but nice if you're monitoring the progress while this runs.
 
-        totalDropped += 1
-        stateDropped += 1
+    line = "Florida"
+    for f in filters:
+        line += "\t" + str(f.globalTotal)
+        line += "\t" + str(f.globalAdditions)
+        line += "\t" + str(f.globalDeletions)
 
-        if int(row1[20]) == 3:
-            stateBlackDropped += 1
-            totalBlackDropped += 1
+    print(line, file=output_file)
 
-        if row1[23] == 'DEM':
-            totalDemDropped += 1
-            stateDemDropped += 1
-
-    # This function processes information about new voters.  So far, it just processes counts...
-    def newVoter(row):
-        nonlocal totalNew
-        global stateNew
-        totalNew += 1
-        stateNew += 1
+    output_file.close()
 
 
-    # Loop through all the voters in both lists....
+if __name__ == "__main__":
+    #   Change these to the directories that hold your two sets of voter files.
+    #   Unless you are also named Charles and are on a Mac, these values will not work for you...
+    #   Files will be named in the format CountyCode_YYYYMMDD.txt
 
-    # This code seems kind of convoluted, but since the two files are mostly, but not completely
-    # the same, we cannot proceed through them both in perfect lockstep. Instead, we need to proceed
-    # through both files independently, pairing off matching rows and detecting where there
-    # are additions or subtractions from the list
+    dir1 = '/Users/charles/Projects/VoterFile/201512'
+    dir2 = '/Users/charles/Projects/VoterFile/201601'
 
-    # We prime the pump with the first row from each file (we assume there is such a row)
-    row1 = next(iter1)
-    row2 = next(iter2)
+    # There is no reason, FWIW, you have to compare sequential months, although you might miss people
+    # who come and go very quickly...
 
-    # Update the general statistics about the first row from the "new" file...
-    updateDemo(row2)
+    # This is the name of the output file; it can be where ever you wish, but probably not here...
+    output_name = '/Users/charles/Projects/VoterFile/Changes-2015-12-2016-01.txt'
 
-    # And away we go!
-    while not (done1 or done2):
+    filters = myFilters()
 
-        # Do we have the same person in each file?
-        if row1[1] == row2[1]:
-            # If so, then neither an addition nor a subtraction.
-            # Move on to the next voter in each file...
-            try:
-                row1 = next(iter1)
-            except StopIteration:
-                done1 = True
-
-            try:
-                row2 = next(iter2)
-                updateDemo(row2)        # This is subtle but important -- update the demos as we read in new voters
-            except StopIteration:
-                done2 = True
-
-            continue
-
-        # Is the voter in the "old" file not present in the "new" file?  We know this because the voter id
-        # in the new file has advanced beyond the voter id in the old file (that is, it is greater than)
-
-        # If this is missing voter, handle the subtraction...
-        if row1[1] < row2[1]:
-            missingVoter(row1)
-
-            try:
-                row1 = next(iter1)
-            except StopIteration:
-                done1 = True
-
-        # Else: The voter is present in the new file, but not in the old file, so this is
-        # an addition to the voter rolls
-        else:
-            newVoter(row2)
-
-            try:
-                row2 = next(iter2)
-                updateDemo(row2)       # This is subtle but important -- update the demos as we read in new voters
-            except StopIteration:
-                done2 = True
-
-    # End of while loop
-
-    # At this point, we have exhausted one or both of the voter files.
-    # If not both, we need to process the stragglers who are either additions or subtractions
-    # depending upon which file has left over rows
-
-    # Are there some people at the end of the old list who are missing?
-    if not done1:
-        while not done1:
-            missingVoter(row1)
-
-            try:
-                row1 = next(iter1)
-            except StopIteration:
-                done1 = True
-
-    # Are there some people at the end of the new list who are new?
-    elif not done2:
-        while not done2:
-            try:
-                row2 = next(iter2)
-                updateDemo(row2)
-                newVoter(row2)
-            except StopIteration:
-                done2 = True
-
-    print("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format(county, totalVoters, totalNew, totalDropped, totalDem, totalDemDropped, totalBlack, totalBlackDropped), file=output_file)
-
-    return      # Not needed, but nice to know where the end of this mess is!!
-
-
-#   This is the "main" part of the code:
-
-#   Print the header row of the data
-print("County\tTotal\tNew\tDropped\tDemocracts\tDemocrats Dropped\tBlacks\tBlacks Dropped", file=output_file)
-
-#   Find all the files in both directories to process.
-from_files = [f for f in os.listdir(dir1) if f.endswith(".txt")]
-to_files = [f for f in os.listdir(dir2) if f.endswith(".txt")]
-
-#   Sort the file names just to be sure they are in the same order
-from_files.sort()
-to_files.sort()
-
-for i in range(len(from_files)):
-    print("Now processing {} county".format(metadata.county_name(from_files[i][0:3])))
-    compare_files(os.path.join(dir1, from_files[i]),
-                  os.path.join(dir2, to_files[i]),
-                  metadata.county_name(from_files[i][0:3]))
-    output_file.flush()     # Not really necessary, but nice if you're monitoring the progress while this runs.
-
-print("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format('Florida', stateTotal, stateNew, stateDropped, stateDemTotal, stateDemDropped, stateBlackTotal, stateBlackDropped), file=output_file)
+    doAnalysis(dir1, dir2, output_name, filters)

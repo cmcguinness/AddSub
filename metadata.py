@@ -53,6 +53,15 @@ voter_columns.append("Daytime Phone Extension")
 voter_columns.append("Email address")
 
 
+def get_column_index(name):
+    for i in range(len(voter_columns)):
+        if voter_columns[i] == name:
+            return i
+
+    return -1
+
+
+
 #   The three letter county codes
 counties = dict()
 counties["ALA"]="Alachua"
@@ -151,8 +160,17 @@ race_code['6']='Other'
 race_code['7']='Multi-racial'
 race_code['9']='Unknown'
 
-def race_code_name(abbrev):
+
+def race_code_to_name(abbrev):
     return race_code[abbrev]
+
+
+def race_code_from_name(name):
+    for c, n in race_code:
+        if n == name:
+            return c
+    return None
+
 
 
 
