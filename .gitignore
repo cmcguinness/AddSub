@@ -8,3 +8,5 @@
 .idea/vcs.xml
 
 __pycache__/metadata.cpython-35.pyc
+
+*.pyc
