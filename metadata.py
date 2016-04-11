@@ -1,6 +1,13 @@
 """
 
-Voter File Metadata definitions
+    Voter File Metadata definitions
+
+    This is a fairly straightforward rendering of the information in the
+    voter file layout documentation.
+
+    Copyright 2016 Charles McGuinness
+    This project is available in a CC Attribution license for you to use as you see fit.
+    See README.md for details
 
 """
 
