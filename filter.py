@@ -1,8 +1,16 @@
+import datetime
+
+#   Operators for use in filters
 OpEqual = 0
 OpNotEqual = 1
 OpIn = 2
 OpNotIn = 3
 OpBetween = 4  # Inclusive
+OpChangedFromTo = 5
+
+#   Derived Columns
+derivedAge = -1
+
 
 
 class Filter:
@@ -18,7 +26,9 @@ class Filter:
     #   Instance creation:
     #       name: The name to refer to this as
     #       criteria: an n-tuple of 2-tuples that defines what to look for.
-    def __init__(self, name, criteria):
+    #       trackchange: also keep track of changes into or out of this criteria (party changes)
+    #       ischange: only track the specific change in the criteria
+    def __init__(self, name, criteria, trackchange=False, ischange=False):
         self.name = name
         self.criteria = criteria
         self.globalTotal = 0
@@ -27,6 +37,38 @@ class Filter:
         self.localAdditions = 0
         self.globalDeletions = 0
         self.localDeletions = 0
+        self.localChangeOut = 0
+        self.localChangeIn = 0
+        self.globalChangeOut = 0
+        self.globalChangeIn = 0
+        self.trackchanges = trackchange
+        self.ischange = ischange
+
+    #   Compute Value of a Derived Column
+    #
+    #   So far, only supports age in years...
+    def computeValue(self, row, index):
+        if index == derivedAge:
+            birthdate = row[21]  # MAGIC DEPENDENCY....
+            try:
+                born = datetime.datetime.strptime(birthdate, '%m/%d/%Y')
+            except ValueError:
+                return None
+
+            today = datetime.date.today()
+            years = today.year - born.year
+            if today.month < born.month:
+                years -= 1
+            elif today.month == born.month and today.day < born.day:
+                years -= 1
+
+            return years
+
+        return None
+
+
+
+
 
     #
     #   Criteria matching:
@@ -47,22 +89,32 @@ class Filter:
 
     def matchesCriteria(self, row):
         for c in self.criteria:
+            if c[0] >= 0:
+                column = row[c[0]]
+            else:
+                column = self.computeValue(row, c[0])
+
+            if column is None:
+                return False
+
             if c[1] == OpEqual:
-                if row[c[0]] != c[2]:
+                if column != c[2]:
                     return False
             elif c[1] == OpNotEqual:
-                if row[c[0]] == c[2]:
+                if column == c[2]:
                     return False
             elif c[1] == OpIn:
-                if not row[c[0]] in c[2]:
+                if not column in c[2]:
                     return False
             elif c[1] == OpNotIn:
-                if row[c[0]] in c[2]:
+                if column in c[2]:
                     return False
+            elif c[1] == OpChangedFromTo:
+                return False  # These rules operate between registrations
             else:  # OpBetween
-                if row[c[0]] < c[2][0]:
+                if column < c[2][0]:
                     return False
-                if row[c[0]] > c[2][0]:
+                if column > c[2][1]:
                     return False
 
         return True
@@ -83,13 +135,37 @@ class Filter:
             self.globalDeletions += 1
             self.localDeletions += 1
 
+    def changeVoter(self, oldRow, newRow):
+        if self.trackchanges:
+            oldMatches = self.matchesCriteria(oldRow)
+            newMatches = self.matchesCriteria(newRow)
+
+            if oldMatches and not newMatches:
+                self.localChangeOut += 1
+                self.globalChangeOut += 1
+
+            if newMatches and not oldMatches:
+                self.localChangeIn += 1
+                self.globalChangeIn += 1
+
+        if self.ischange:
+            c = self.criteria[0]
+            if c[1] == OpChangedFromTo:
+                if oldRow[c[0]] == c[2][0] and newRow[c[0]] == c[2][1]:
+                    self.localTotal += 1
+                    self.globalTotal += 1
+
+
+
     def resetLocal(self):
         self.localAdditions = 0
         self.localDeletions = 0
         self.localTotal = 0
+        self.localChangeIn = 0
+        self.localChangeOut = 0
 
-    def getLocalStats(self):
-        return (self.localTotal, self.localAdditions, self.localDeletions)
-
-    def getGlobalStats(self):
-        return (self.globalTotal, self.globalAdditions, self.globalDeletions)
+        # def getLocalStats(self):
+        #     return (self.localTotal, self.localAdditions, self.localDeletions)
+        #
+        # def getGlobalStats(self):
+        #     return (self.globalTotal, self.globalAdditions, self.globalDeletions)

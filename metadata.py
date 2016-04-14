@@ -10,6 +10,7 @@
     See README.md for details
 
 """
+import filter
 
 #   The columns in the voter extract file
 voter_columns = []
@@ -34,7 +35,7 @@ voter_columns.append("Mailing Zip")
 voter_columns.append("Mailing Country")
 voter_columns.append("Gender")
 voter_columns.append("Race")
-voter_columns.append("Birth Date")
+voter_columns.append("Birth Date")  # Not that filter "knows" this is 21.  Change if this changes
 voter_columns.append("Registration date")
 voter_columns.append("Party")
 voter_columns.append("Precinct")
@@ -52,11 +53,18 @@ voter_columns.append("Daytime Phone Number")
 voter_columns.append("Daytime Phone Extension")
 voter_columns.append("Email address")
 
+#   Derrived columns are statistics which are computed from the actual data in the file.
+voter_derived_columns = dict()
+voter_derived_columns['Age'] = filter.derivedAge  # Voter's age in years
+
+
 
 def get_column_index(name):
     for i in range(len(voter_columns)):
         if voter_columns[i] == name:
             return i
+    if name in voter_derived_columns:
+        return voter_derived_columns[name]
 
     return -1
 

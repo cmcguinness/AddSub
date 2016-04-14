@@ -12,7 +12,9 @@ import csv
 from typing import List
 
 import filter
+import metadata
 
+changecount = 0
 
 def doRecord(row, filters: List[filter.Filter]):
     for f in filters:
@@ -27,6 +29,35 @@ def doNew(row, filters: List[filter.Filter]):
 def doDel(row, filters):
     for f in filters:
         f.delVoter(row)
+
+
+def doChange(row1, row2, filters):
+    for f in filters:
+        f.changeVoter(row1, row2)
+
+
+# The same voter can exist in two files, but something about them has changed.
+#   At the moment, the only meaningful change we track is did they switch parties?
+#   But others can be found...
+
+party_index = metadata.get_column_index('Party')  # Only do this once, please...
+
+
+def testMeaningfulChangeInRegistration(row1, row2):
+    '''
+    Did the registration change in a way that we're interested in?
+
+    Currently, only a change in party is interesting...
+    '''
+    global party_index
+    global changecount
+
+    if row1[party_index] != row2[party_index]:
+        # print("{},{},{} {}->{}".format(row1[1], row1[2], row1[4], row1[23], row2[23]))
+        # changecount += 1
+        return True
+
+    return False
 
 
 def compare_files(name1, name2, filters: List[filter.Filter]):
@@ -83,7 +114,12 @@ def compare_files(name1, name2, filters: List[filter.Filter]):
 
         # Do we have the same person in each file?
         if row1[1] == row2[1]:
-            # If so, then neither an addition nor a subtraction.
+
+            # Did they change in some significant way?
+            if testMeaningfulChangeInRegistration(row1, row2):
+                # If so, note the change...
+                doChange(row1, row2, filters)
+
             # Move on to the next voter in each file...
             try:
                 row1 = next(iter1)
@@ -148,4 +184,7 @@ def compare_files(name1, name2, filters: List[filter.Filter]):
             except StopIteration:
                 done2 = True
 
+    # global changecount
+    # print("A total of {} people changed party".format(changecount))
+    # changecount = 0
     return  # Not needed, but nice to know where the end of this mess is!!

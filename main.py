@@ -17,7 +17,7 @@ import os
 
 import metadata
 import processcounty
-from filter import Filter, OpEqual, OpNotIn
+from filter import Filter, OpEqual, OpNotIn, OpBetween, OpChangedFromTo
 
 
 #   Define the filters we want to use
@@ -45,16 +45,24 @@ def myFilters():
     #   The simplest of all filters, one that admits all voters
     filters.append(Filter("All", []))
 
-    #   Filters by party
-    filters.append(Filter("Democrats", [[metadata.get_column_index("Party"), OpEqual, "DEM"]]))
-    filters.append(Filter("Republicans", [[metadata.get_column_index("Party"), OpEqual, "REP"]]))
-    filters.append(Filter("No Party", [[metadata.get_column_index("Party"), OpEqual, "NPA"]]))
-    filters.append(Filter("Third Party", [[metadata.get_column_index("Party"), OpNotIn, ("DEM", "REP", "NPA")]]))
+    #   Filters by party.  Note that we want to track changes in a voter's registration if they shift
+    #   between parties, and so we include the trackchange flag for them.
+    filters.append(Filter("Democrats", [[metadata.get_column_index("Party"), OpEqual, "DEM"]], trackchange=True))
+    filters.append(Filter("Republicans", [[metadata.get_column_index("Party"), OpEqual, "REP"]], trackchange=True))
+    filters.append(Filter("No Party", [[metadata.get_column_index("Party"), OpEqual, "NPA"]], trackchange=True))
+    filters.append(Filter("Third Party", [[metadata.get_column_index("Party"), OpNotIn, ("DEM", "REP", "NPA")]], trackchange=True))
+
+    # Specific reregistrations
+    filters.append(Filter("D to R", [[metadata.get_column_index("Party"), OpChangedFromTo, ('DEM', 'REP')]], ischange=True))
+    filters.append(Filter("R to D", [[metadata.get_column_index("Party"), OpChangedFromTo, ('REP', 'DEM')]], ischange=True))
 
     #   Filters by race
+    filters.append(Filter("American Indians or Alaskan Natives", [[metadata.get_column_index("Race"), OpEqual, "1"]]))
+    filters.append(Filter("Asians Or Pacific Islanders", [[metadata.get_column_index("Race"), OpEqual, "2"]]))
     filters.append(Filter("Blacks", [[metadata.get_column_index("Race"), OpEqual, "3"]]))
+    filters.append(Filter("Hispanics", [[metadata.get_column_index("Race"), OpEqual, "4"]]))
     filters.append(Filter("Whites", [[metadata.get_column_index("Race"), OpEqual, "5"]]))
-    filters.append(Filter("Other Races", [[metadata.get_column_index("Race"), OpNotIn, ("3", "5")]]))
+    filters.append(Filter("Other Races", [[metadata.get_column_index("Race"), OpNotIn, ('1', '2', '3', '4', "5")]]))
 
     #   Filters by gender
     filters.append(Filter("Men", [[metadata.get_column_index("Gender"), OpEqual, "M"]]))
@@ -65,6 +73,90 @@ def myFilters():
         [metadata.get_column_index("Race"), OpEqual, "3"],
         [metadata.get_column_index("Gender"), OpEqual, "F"]
     ]))
+
+    # Black Democrats
+    filters.append(Filter("Black Democrats", [
+        [metadata.get_column_index("Race"), OpEqual, "3"],
+        [metadata.get_column_index("Party"), OpEqual, "DEM"]
+    ]))
+
+    # Black Republicans
+    filters.append(Filter("Black Republicans", [
+        [metadata.get_column_index("Race"), OpEqual, "3"],
+        [metadata.get_column_index("Party"), OpEqual, "REP"]
+    ]))
+
+    # Hispanic Democrats
+    filters.append(Filter("Hispanic Democrats", [
+        [metadata.get_column_index("Race"), OpEqual, "4"],
+        [metadata.get_column_index("Party"), OpEqual, "DEM"]
+    ]))
+
+    # Hispanic Republicans
+    filters.append(Filter("Hispanic Republicans", [
+        [metadata.get_column_index("Race"), OpEqual, "4"],
+        [metadata.get_column_index("Party"), OpEqual, "REP"]
+    ]))
+
+    #   Demographic Filters
+    filters.append(Filter("Under 30", [[metadata.get_column_index("Age"), OpBetween, (0, 29)]]))
+    filters.append(Filter("30 to 39", [[metadata.get_column_index("Age"), OpBetween, (30, 39)]]))
+    filters.append(Filter("40 to 49", [[metadata.get_column_index("Age"), OpBetween, (40, 49)]]))
+    filters.append(Filter("50 to 59", [[metadata.get_column_index("Age"), OpBetween, (50, 59)]]))
+    filters.append(Filter("60 to 69", [[metadata.get_column_index("Age"), OpBetween, (60, 69)]]))
+    filters.append(Filter("70 and over", [[metadata.get_column_index("Age"), OpBetween, (70, 999)]]))
+
+    # Other interesting statistics
+
+    # <30 Republicans
+    filters.append(Filter("Under 30 Republicans", [
+        [metadata.get_column_index("Age"), OpBetween, (0, 29)],
+        [metadata.get_column_index("Party"), OpEqual, "REP"]
+    ]))
+
+    # <30 Democrats
+    filters.append(Filter("Under 30 Democrats", [
+        [metadata.get_column_index("Age"), OpBetween, (0, 29)],
+        [metadata.get_column_index("Party"), OpEqual, "DEM"]
+    ]))
+
+    # White Democrats
+    filters.append(Filter("White Democrats", [
+        [metadata.get_column_index("Race"), OpEqual, "5"],
+        [metadata.get_column_index("Party"), OpEqual, "DEM"]
+    ]))
+
+    # White Republicans
+    filters.append(Filter("White Republicans", [
+        [metadata.get_column_index("Race"), OpEqual, "5"],
+        [metadata.get_column_index("Party"), OpEqual, "REP"]
+    ]))
+
+    # Asian/Pacific Islander Democrats
+    filters.append(Filter("AoPI Democrats", [
+        [metadata.get_column_index("Race"), OpEqual, "2"],
+        [metadata.get_column_index("Party"), OpEqual, "DEM"]
+    ]))
+
+    # Asian/Pacific Islander Republicans
+    filters.append(Filter("AoPI Republicans", [
+        [metadata.get_column_index("Race"), OpEqual, "2"],
+        [metadata.get_column_index("Party"), OpEqual, "REP"]
+    ]))
+
+    # Minor Parties
+    filters.append(Filter("American’s Party of Florida", [[metadata.get_column_index("Party"), OpEqual, "AIP"]], trackchange=True))
+    filters.append(
+        Filter("Constitution Party of Florida", [[metadata.get_column_index("Party"), OpEqual, "CPF"]], trackchange=True))
+    filters.append(Filter("Ecology Party of Florida", [[metadata.get_column_index("Party"), OpEqual, "ECO"]], trackchange=True))
+    filters.append(Filter("Green Party of Florida", [[metadata.get_column_index("Party"), OpEqual, "GRE"]], trackchange=True))
+    filters.append(
+        Filter("Independence Party of Florida", [[metadata.get_column_index("Party"), OpEqual, "IDP"]], trackchange=True))
+    filters.append(Filter("Independent Party of Florida", [[metadata.get_column_index("Party"), OpEqual, "INT"]], trackchange=True))
+    filters.append(Filter("Libertarian Party of Florida", [[metadata.get_column_index("Party"), OpEqual, "LPF"]], trackchange=True))
+    filters.append(Filter("Party for Socialism and Liberation Florida", [[metadata.get_column_index("Party"), OpEqual, "PSL"]],
+                          trackchange=True))
+    filters.append(Filter("Reform Party", [[metadata.get_column_index("Party"), OpEqual, "REF"]], trackchange=True))
 
     return filters
 
@@ -79,8 +171,12 @@ def doAnalysis(dir1, dir2, output_name, filters):
 
     for f in filters:
         header += "\t" + f.name + " Total"
-        header += "\t" + f.name + " Added"
-        header += "\t" + f.name + " Deleted"
+        if not f.ischange:
+            header += "\t" + f.name + " Added"
+            header += "\t" + f.name + " Deleted"
+        if f.trackchanges:
+            header += "\t" + f.name + " Changed Out"
+            header += "\t" + f.name + " Changed In"
 
     print(header, file=output_file)
 
@@ -102,8 +198,12 @@ def doAnalysis(dir1, dir2, output_name, filters):
         line = metadata.county_name(from_files[i][0:3])
         for f in filters:
             line += "\t" + str(f.localTotal)
-            line += "\t" + str(f.localAdditions)
-            line += "\t" + str(f.localDeletions)
+            if not f.ischange:
+                line += "\t" + str(f.localAdditions)
+                line += "\t" + str(f.localDeletions)
+            if f.trackchanges:
+                line += "\t" + str(f.localChangeOut)
+                line += "\t" + str(f.localChangeIn)
             f.resetLocal()
 
         print(line, file=output_file)
@@ -112,8 +212,12 @@ def doAnalysis(dir1, dir2, output_name, filters):
     line = "Florida"
     for f in filters:
         line += "\t" + str(f.globalTotal)
-        line += "\t" + str(f.globalAdditions)
-        line += "\t" + str(f.globalDeletions)
+        if not f.ischange:
+            line += "\t" + str(f.globalAdditions)
+            line += "\t" + str(f.globalDeletions)
+        if f.trackchanges:
+            line += "\t" + str(f.globalChangeOut)
+            line += "\t" + str(f.globalChangeIn)
 
     print(line, file=output_file)
 
@@ -125,14 +229,14 @@ if __name__ == "__main__":
     #   Unless you are also named Charles and are on a Mac, these values will not work for you...
     #   Files will be named in the format CountyCode_YYYYMMDD.txt
 
-    dir1 = '/Users/charles/Projects/VoterFile/201512'
-    dir2 = '/Users/charles/Projects/VoterFile/201601'
+    dir1 = '/Users/charles/Projects/VoterFile/201605'
+    dir2 = '/Users/charles/Projects/VoterFile/201606'
 
     # There is no reason, FWIW, you have to compare sequential months, although you might miss people
     # who come and go very quickly...
 
     # This is the name of the output file; it can be where ever you wish, but probably not here...
-    output_name = '/Users/charles/Projects/VoterFile/Changes-2015-12-2016-01.txt'
+    output_name = '/Users/charles/Projects/VoterFile/Changes-2016-05-2016-06.txt'
 
     filters = myFilters()
 

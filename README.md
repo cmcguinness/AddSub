@@ -30,21 +30,9 @@ are not, and you will have to download them one at a time (or figure out how to 
 Put each month's data into a separate directory as this program relies on that structure to process
 the data from each county.
 
-## Misc.
-
-* The program computes the number of people added and removed from the voter rolls.  To do this, it identifies
-each voter whose registration status has changed from period to period. It would be quicker and easier to identify
-the net changes just by aggregating the numbers, but that wouldn't give you the same sense
-of volatility in the overall numbers.
-* Since this does not track moves between counties, I suspect the #s it generates for both additions and
-subtractions are higher than they really are; this seems to be confirmed by the fact that my numbers are consistently
-higher than the #s given in the state's monthly report.
-* I have no idea if this will work or how to make it work for other states.
 
 ### Todos:
 
-* Detect changes in a record which isn't an addition or subtraction (e.g., party switch).  Right now,
-these are just ignored.
 * Detect people who have moved from one county to another.  Right now, they are treated as deletions
 from one county and additions to another.
 
